@@ -29,20 +29,23 @@ __m128 trace_square(
     __m128 m00, __m128 m13, __m128 m26,
                 __m128 m44, __m128 m57,
                             __m128 m88) {
-  __m128 vtr;
-  // 00
-  vtr = _mm_mul_ps(m00, m00);
-  vtr = _mm_add_ps(vtr, _mm_mul_ps(m13, m13));
-  vtr = _mm_add_ps(vtr, _mm_mul_ps(m26, m26));
-  // 44
-  vtr = _mm_add_ps(vtr, _mm_mul_ps(m13, m13));
-  vtr = _mm_add_ps(vtr, _mm_mul_ps(m44, m44));
-  vtr = _mm_add_ps(vtr, _mm_mul_ps(m57, m57));
-  // 88
-  vtr = _mm_add_ps(vtr, _mm_mul_ps(m26, m26));
-  vtr = _mm_add_ps(vtr, _mm_mul_ps(m57, m57));
-  vtr = _mm_add_ps(vtr, _mm_mul_ps(m88, m88));
-  return vtr;
+  return _mm_add_ps(
+    _mm_add_ps(
+      _mm_add_ps(
+        _mm_add_ps(
+          _mm_mul_ps(m00, m00),
+          _mm_mul_ps(m13, m13)),
+        _mm_add_ps(
+          _mm_mul_ps(m26, m26),
+          _mm_mul_ps(m13, m13))),
+      _mm_add_ps(
+        _mm_add_ps(
+          _mm_mul_ps(m44, m44),
+          _mm_mul_ps(m57, m57)),
+        _mm_add_ps(
+          _mm_mul_ps(m26, m26),
+          _mm_mul_ps(m57, m57)))),
+    _mm_mul_ps(m88, m88));
 }
 
 float det(float m[9]) {
