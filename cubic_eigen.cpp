@@ -237,6 +237,15 @@ int main() {
   std::vector<float> e0s_simd(N*N*N, 0.0f);
   std::vector<float> e1s_simd(N*N*N, 0.0f);
   std::vector<float> e2s_simd(N*N*N, 0.0f);
+  timer("SSE1", n_iter, [&]{
+    eigen_hessian_3d<1>(e0s_simd.data(), e1s_simd.data(), e2s_simd.data(), volume.data(), N, N, N, false);
+  });
+  timer("SSE2", n_iter, [&]{
+    eigen_hessian_3d<2>(e0s_simd.data(), e1s_simd.data(), e2s_simd.data(), volume.data(), N, N, N, false);
+  });
+  timer("SSE3", n_iter, [&]{
+    eigen_hessian_3d<3>(e0s_simd.data(), e1s_simd.data(), e2s_simd.data(), volume.data(), N, N, N, false);
+  });
   timer("SSE", n_iter, [&]{
     eigen_hessian_3d<newton_iter>(e0s_simd.data(), e1s_simd.data(), e2s_simd.data(), volume.data(), N, N, N, false);
   });
