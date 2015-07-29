@@ -72,9 +72,9 @@ void cubic_eigen(float m[9], float e[3]) {
   const float sq = std::sqrt(a*a - 3.0f*b);
   const float p = (-a - sq)/3.0;
   const float q = (-a + sq)/3.0;
-  const float r = p + (p - q)*0.1f;
+  const float r = p + (p - q);
   const float s = (p + q)*0.5f;
-  const float t = q + (q - p)*0.1f;
+  const float t = q + (q - p);
   auto newton = [=](float x) {
     for (size_t i=0; i<newton_iter; ++i) {
       x = x - (x*x*x + a*x*x + b*x + c)/(3*x*x + 2*a*x + b);
@@ -143,9 +143,9 @@ void eigen_hessian_3d(float* dst_e0, float* dst_e1, float* dst_e2, const float* 
         const float f_xx = v(x + 1, y, z) + v(x - 1, y, z) - f;
         const float f_yy = v(x, y + 1, z) + v(x, y - 1, z) - f;
         const float f_zz = v(x, y, z + 1) + v(x, y, z - 1) - f;
-        const float f_xy = v(x + 1, y + 1, z) + v(x - 1, y - 1, z) - f;
-        const float f_yz = v(x, y + 1, z + 1) + v(x, y - 1, z - 1) - f;
-        const float f_zx = v(x + 1, y, z + 1) + v(x - 1, y, z - 1) - f;
+        const float f_xy = v(x + 1, y + 1, z) + v(x - 1, y - 1, z) - v(x - 1, y + 1, z) - v(x + 1, y - 1, z);
+        const float f_yz = v(x, y + 1, z + 1) + v(x, y - 1, z - 1) - v(x, y - 1, z + 1) - v(x, y + 1, z - 1);
+        const float f_zx = v(x + 1, y, z + 1) + v(x - 1, y, z - 1) - v(x + 1, y, z - 1) - v(x - 1, y, z + 1);
         float m[9] = {
           f_xx, f_xy, f_zx,
           f_xy, f_yy, f_yz,
@@ -168,15 +168,21 @@ void eigen_hessian_3d(float* dst_e0, float* dst_e1, float* dst_e2, const float* 
         __m128 vfxx = _mm_sub_ps(_mm_add_ps(vfxm1, vfxp1), vf2);
         __m128 vfyy = _mm_sub_ps(_mm_add_ps(vfym1, vfyp1), vf2);
         __m128 vfzz = _mm_sub_ps(_mm_add_ps(vfzm1, vfzp1), vf2);
-        __m128 vfxym1 = _mm_loadu_ps((const float*)&src[(z*h + y - 1)*w + x - 1]);
-        __m128 vfxyp1 = _mm_loadu_ps((const float*)&src[(z*h + y + 1)*w + x + 1]);
-        __m128 vfyzm1 = _mm_loadu_ps((const float*)&src[((z - 1)*h + y - 1)*w + x]);
-        __m128 vfyzp1 = _mm_loadu_ps((const float*)&src[((z + 1)*h + y + 1)*w + x]);
-        __m128 vfzxm1 = _mm_loadu_ps((const float*)&src[((z - 1)*h + y)*w + x - 1]);
-        __m128 vfzxp1 = _mm_loadu_ps((const float*)&src[((z + 1)*h + y)*w + x + 1]);
-        __m128 vfxy = _mm_sub_ps(_mm_add_ps(vfxym1, vfxyp1), vf2);
-        __m128 vfyz = _mm_sub_ps(_mm_add_ps(vfyzm1, vfyzp1), vf2);
-        __m128 vfzx = _mm_sub_ps(_mm_add_ps(vfzxm1, vfzxp1), vf2);
+        __m128 vfxm1ym1 = _mm_loadu_ps((const float*)&src[(z*h + y - 1)*w + x - 1]);
+        __m128 vfxp1ym1 = _mm_loadu_ps((const float*)&src[(z*h + y - 1)*w + x + 1]);
+        __m128 vfxm1yp1 = _mm_loadu_ps((const float*)&src[(z*h + y + 1)*w + x - 1]);
+        __m128 vfxp1yp1 = _mm_loadu_ps((const float*)&src[(z*h + y + 1)*w + x + 1]);
+        __m128 vfym1zm1 = _mm_loadu_ps((const float*)&src[((z - 1)*h + y - 1)*w + x]);
+        __m128 vfyp1zm1 = _mm_loadu_ps((const float*)&src[((z - 1)*h + y + 1)*w + x]);
+        __m128 vfym1zp1 = _mm_loadu_ps((const float*)&src[((z + 1)*h + y - 1)*w + x]);
+        __m128 vfyp1zp1 = _mm_loadu_ps((const float*)&src[((z + 1)*h + y + 1)*w + x]);
+        __m128 vfzm1xm1 = _mm_loadu_ps((const float*)&src[((z - 1)*h + y)*w + x - 1]);
+        __m128 vfzp1xm1 = _mm_loadu_ps((const float*)&src[((z + 1)*h + y)*w + x - 1]);
+        __m128 vfzm1xp1 = _mm_loadu_ps((const float*)&src[((z - 1)*h + y)*w + x + 1]);
+        __m128 vfzp1xp1 = _mm_loadu_ps((const float*)&src[((z + 1)*h + y)*w + x + 1]);
+        __m128 vfxy = _mm_sub_ps(_mm_add_ps(vfxp1yp1, vfxm1ym1), _mm_add_ps(vfxm1yp1, vfxp1ym1));
+        __m128 vfyz = _mm_sub_ps(_mm_add_ps(vfyp1zp1, vfym1zm1), _mm_add_ps(vfym1zp1, vfyp1zm1));
+        __m128 vfzx = _mm_sub_ps(_mm_add_ps(vfzp1xp1, vfzm1xm1), _mm_add_ps(vfzm1xp1, vfzp1xm1));
         __m128 ve0, ve1, ve2;
         cubic_eigen<newton_iter>(vfxx, vfxy, vfzx, vfyy, vfyz, vfzz, ve0, ve1, ve2);
         _mm_storeu_ps((float*)&dst_e0[(z*h + y)*w + x], ve0);
