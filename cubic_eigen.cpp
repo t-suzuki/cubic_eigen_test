@@ -69,12 +69,10 @@ void cubic_eigen(float m[9], float e[3]) {
   const float a = -trace(m);
   const float b = -0.5f*(trace_square(m) - a*a);
   const float c = -det(m);
-  const float sq = std::sqrt(a*a - 3.0f*b);
-  const float p = (-a - sq)/3.0;
-  const float q = (-a + sq)/3.0;
-  const float r = p + (p - q);
-  const float s = (p + q)*0.5f;
-  const float t = q + (q - p);
+  const float sqrt = std::sqrt(a*a - 3.0f*b);
+  const float r = -a/3.0f - sqrt;
+  const float s = -a/3.0f;
+  const float t = -a/3.0f + sqrt;
   auto newton = [=](float x) {
     for (size_t i=0; i<newton_iter; ++i) {
       x = x - (x*x*x + a*x*x + b*x + c)/(3*x*x + 2*a*x + b);
@@ -100,22 +98,19 @@ void cubic_eigen(
   const __m128 va2 = _mm_mul_ps(vaneg, vaneg);
   const __m128 vb = _mm_mul_ps(_mm_set1_ps(-0.5f), _mm_sub_ps(trace_square(M), va2));
   const __m128 vcneg = det(M);
-  const __m128 vsq = _mm_sqrt_ps(_mm_sub_ps(va2, _mm_mul_ps(_mm_set1_ps(3.0f), vb)));
-  const __m128 vp = _mm_mul_ps(_mm_sub_ps(vaneg, vsq), _mm_set1_ps(1.0f/3.0f));
-  const __m128 vq = _mm_mul_ps(_mm_add_ps(vaneg, vsq), _mm_set1_ps(1.0f/3.0f));
-  const __m128 vr = _mm_add_ps(vp, _mm_sub_ps(vp, vq));
+  const __m128 vsqrt = _mm_sqrt_ps(_mm_sub_ps(va2, _mm_mul_ps(_mm_set1_ps(3.0f), vb)));
   const __m128 vs = _mm_mul_ps(vaneg, _mm_set1_ps(1.0f/3.0f));
-  const __m128 vt = _mm_sub_ps(vq, _mm_sub_ps(vp, vq));
+  const __m128 vr = _mm_sub_ps(vs, vsqrt);
+  const __m128 vt = _mm_add_ps(vs, vsqrt);
 #undef M
   auto newton = [=](__m128 vx) {
     for (size_t i=0; i<newton_iter; ++i) {
       __m128 vx2 = _mm_mul_ps(vx, vx);
       __m128 vaneg_mult_vx = _mm_mul_ps(vaneg, vx);
-      vx = _mm_sub_ps(vx, _mm_mul_ps(
-            _mm_sub_ps(_mm_add_ps(_mm_sub_ps(_mm_mul_ps(vx2, vx),
-              _mm_mul_ps(vaneg, vx2)),
-              _mm_mul_ps(vb, vx)),
-              vcneg),
+      vx = _mm_sub_ps(vx, _mm_mul_ps(_mm_sub_ps(
+            _mm_mul_ps(_mm_add_ps(
+                _mm_sub_ps(vx2, vaneg_mult_vx),
+                vb), vx), vcneg),
             _mm_rcp_ps(
               _mm_add_ps(_mm_sub_ps(_mm_mul_ps(_mm_set1_ps(3.0f), vx2),
                   _mm_add_ps(vaneg_mult_vx, vaneg_mult_vx)),
