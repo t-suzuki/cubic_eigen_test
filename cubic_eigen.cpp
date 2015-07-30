@@ -64,70 +64,138 @@ __m128 det(
   return vdet;
 }
 
-template <size_t newton_iter>
+template <size_t newton_iter, int version>
 void cubic_eigen(float m[9], float e[3]) {
-  const float a = -trace(m);
-  const float b = -0.5f*(trace_square(m) - a*a);
-  const float c = -det(m);
-  const float sqrt = std::sqrt(a*a - 3.0f*b);
-  const float r = -a/3.0f - sqrt;
-  const float s = -a/3.0f;
-  const float t = -a/3.0f + sqrt;
-  auto newton = [=](float x) {
-    for (size_t i=0; i<newton_iter; ++i) {
-      x = x - (x*x*x + a*x*x + b*x + c)/(3*x*x + 2*a*x + b);
-    }
-    return x;
-  };
-  const float x_r = newton(r);
-  const float x_s = newton(s);
-  const float x_t = newton(t);
-  e[0] = x_r;
-  e[1] = x_s;
-  e[2] = x_t;
+  if (version == 0) {
+    const float a = -trace(m);
+    const float b = -0.5f*(trace_square(m) - a*a);
+    const float c = -det(m);
+    const float sqrt = std::sqrt(a*a - 3.0f*b);
+    const float r = -a/3.0f - sqrt;
+    const float s = -a/3.0f;
+    const float t = -a/3.0f + sqrt;
+    auto newton = [=](float x) {
+      for (size_t i=0; i<newton_iter; ++i) {
+        x = x - (x*x*x + a*x*x + b*x + c)/(3*x*x + 2*a*x + b);
+      }
+      return x;
+    };
+    const float x_r = newton(r);
+    const float x_s = newton(s);
+    const float x_t = newton(t);
+    e[0] = x_r;
+    e[1] = x_s;
+    e[2] = x_t;
+  }
+  if (version == 1) {
+    const float a = -trace(m);
+    const float b = -0.5f*(trace_square(m) - a*a);
+    const float c = -det(m);
+    const float sqrt = std::sqrt(a*a - 3.0f*b);
+    const float h = -a/3.0f;
+    const float t = -a/3.0f + (h*h*h + a*h*h + b*h + c > 0 ? sqrt : - sqrt);
+    auto newton = [=](float x) {
+      for (size_t i=0; i<newton_iter; ++i) {
+        x = x - (x*x*x + a*x*x + b*x + c)/(3*x*x + 2*a*x + b);
+      }
+      return x;
+    };
+    float x_t = newton(t);
+    const float alpha = a + x_t;
+    const float beta  = b + alpha*x_t;
+    const float sqrt2 = std::sqrt(alpha*alpha - 4.0f*beta);
+    float x_r = (-alpha - sqrt2)*0.5f;
+    float x_s = (-alpha + sqrt2)*0.5f;
+    if (x_t < x_r) std::swap(x_t, x_r);
+    if (x_t < x_s) std::swap(x_t, x_s);
+    e[0] = x_r;
+    e[1] = x_s;
+    e[2] = x_t;
+  }
 }
 
-template <size_t newton_iter>
+template <size_t newton_iter, int version>
 void cubic_eigen(
     __m128 m00, __m128 m13, __m128 m26,
                 __m128 m44, __m128 m57,
                             __m128 m88,
     __m128& e0, __m128& e1, __m128& e2) {
+  if (version == 0) {
 #define M m00, m13, m26, m44, m57, m88
-  const __m128 vaneg = trace(M);
-  const __m128 va2 = _mm_mul_ps(vaneg, vaneg);
-  const __m128 vb = _mm_mul_ps(_mm_set1_ps(-0.5f), _mm_sub_ps(trace_square(M), va2));
-  const __m128 vcneg = det(M);
-  const __m128 vsqrt = _mm_sqrt_ps(_mm_sub_ps(va2, _mm_mul_ps(_mm_set1_ps(3.0f), vb)));
-  const __m128 vs = _mm_mul_ps(vaneg, _mm_set1_ps(1.0f/3.0f));
-  const __m128 vr = _mm_sub_ps(vs, vsqrt);
-  const __m128 vt = _mm_add_ps(vs, vsqrt);
+    const __m128 vaneg = trace(M);
+    const __m128 va2 = _mm_mul_ps(vaneg, vaneg);
+    const __m128 vb = _mm_mul_ps(_mm_set1_ps(-0.5f), _mm_sub_ps(trace_square(M), va2));
+    const __m128 vcneg = det(M);
+    const __m128 vsqrt = _mm_sqrt_ps(_mm_sub_ps(va2, _mm_mul_ps(_mm_set1_ps(3.0f), vb)));
+    const __m128 vs = _mm_mul_ps(vaneg, _mm_set1_ps(1.0f/3.0f));
+    const __m128 vr = _mm_sub_ps(vs, vsqrt);
+    const __m128 vt = _mm_add_ps(vs, vsqrt);
 #undef M
-  auto newton = [=](__m128 vx) {
-    for (size_t i=0; i<newton_iter; ++i) {
-      __m128 vx2 = _mm_mul_ps(vx, vx);
-      __m128 vaneg_mult_vx = _mm_mul_ps(vaneg, vx);
-      vx = _mm_sub_ps(vx, _mm_mul_ps(_mm_sub_ps(
-            _mm_mul_ps(_mm_add_ps(
-                _mm_sub_ps(vx2, vaneg_mult_vx),
-                vb), vx), vcneg),
-            _mm_rcp_ps(
-              _mm_add_ps(_mm_sub_ps(_mm_mul_ps(_mm_set1_ps(3.0f), vx2),
-                  _mm_add_ps(vaneg_mult_vx, vaneg_mult_vx)),
-                vb)
-              )));
-    }
-    return vx;
-  };
-  e0 = newton(vr);
-  e1 = newton(vs);
-  e2 = newton(vt);
+    auto newton = [=](__m128 vx) {
+      for (size_t i=0; i<newton_iter; ++i) {
+        __m128 vx2 = _mm_mul_ps(vx, vx);
+        __m128 vaneg_mult_vx = _mm_mul_ps(vaneg, vx);
+        vx = _mm_sub_ps(vx, _mm_mul_ps(_mm_sub_ps(
+              _mm_mul_ps(_mm_add_ps(
+                  _mm_sub_ps(vx2, vaneg_mult_vx),
+                  vb), vx), vcneg),
+              _mm_rcp_ps(
+                _mm_add_ps(_mm_sub_ps(_mm_mul_ps(_mm_set1_ps(3.0f), vx2),
+                    _mm_add_ps(vaneg_mult_vx, vaneg_mult_vx)),
+                  vb)
+                )));
+      }
+      return vx;
+    };
+    e0 = newton(vr);
+    e1 = newton(vs);
+    e2 = newton(vt);
+  }
+  if (version == 1) {
+#define M m00, m13, m26, m44, m57, m88
+    const __m128 vaneg = trace(M);
+    const __m128 va2 = _mm_mul_ps(vaneg, vaneg);
+    const __m128 vb = _mm_mul_ps(_mm_set1_ps(-0.5f), _mm_sub_ps(trace_square(M), va2));
+    const __m128 vcneg = det(M);
+    const __m128 vsqrt = _mm_sqrt_ps(_mm_sub_ps(va2, _mm_mul_ps(_mm_set1_ps(3.0f), vb)));
+    const __m128 vh = _mm_mul_ps(vaneg, _mm_set1_ps(1.0f/3.0f));
+    const __m128 vfh = _mm_sub_ps(_mm_mul_ps(vh, _mm_add_ps(_mm_mul_ps(vh, _mm_sub_ps(vh, vaneg)), vb)), vcneg);
+    const __m128 vmask = _mm_cmpgt_ps(vfh, _mm_setzero_ps());
+    const __m128 vtstart = _mm_add_ps(vh, _mm_or_ps(_mm_and_ps(vmask, vsqrt), _mm_andnot_ps(vmask, _mm_sub_ps(_mm_setzero_ps(), vsqrt))));
+#undef M
+    auto newton = [=](__m128 vx) {
+      for (size_t i=0; i<newton_iter; ++i) {
+        __m128 vx2 = _mm_mul_ps(vx, vx);
+        __m128 vaneg_mult_vx = _mm_mul_ps(vaneg, vx);
+        vx = _mm_sub_ps(vx, _mm_mul_ps(_mm_sub_ps(
+              _mm_mul_ps(_mm_add_ps(
+                  _mm_sub_ps(vx2, vaneg_mult_vx),
+                  vb), vx), vcneg),
+              _mm_rcp_ps(
+                _mm_add_ps(_mm_sub_ps(_mm_mul_ps(_mm_set1_ps(3.0f), vx2),
+                    _mm_add_ps(vaneg_mult_vx, vaneg_mult_vx)),
+                  vb)
+                )));
+      }
+      return vx;
+    };
+    __m128 vt = newton(vtstart);
+    __m128 valphaneg = _mm_sub_ps(vaneg, vt);
+    __m128 vbeta = _mm_sub_ps(vb, _mm_mul_ps(valphaneg, vt));
+    __m128 vsqrt2 = _mm_sqrt_ps(_mm_add_ps(_mm_mul_ps(valphaneg, valphaneg), _mm_mul_ps(_mm_set1_ps(-4.0f), vbeta)));
+    __m128 vr = _mm_mul_ps(_mm_sub_ps(valphaneg, vsqrt2), _mm_set1_ps(0.5f));
+    __m128 vs = _mm_mul_ps(_mm_add_ps(valphaneg, vsqrt2), _mm_set1_ps(0.5f));
+    __m128 vtrmax = _mm_max_ps(vt, vr);
+    e0 = _mm_min_ps(vt, vr);
+    e1 = _mm_min_ps(vtrmax, vs);
+    e2 = _mm_max_ps(vtrmax, vs);
+  }
 }
 } // anonymous namespace
 
 // calculate the eigenvalues of the Hessian of the volume.
 // e0 <= e1 <= e2
-template <size_t newton_iter>
+template <size_t newton_iter, int version>
 void eigen_hessian_3d(float* dst_e0, float* dst_e1, float* dst_e2, const float* src, size_t w, size_t h, size_t d, bool ref) {
   auto v = [=](size_t x, size_t y, size_t z) -> const float& { return src[(z*h + y)*w + x]; };
   auto ev = [=](float* vol, size_t x, size_t y, size_t z) -> float& { return vol[(z*h + y)*w + x]; };
@@ -146,7 +214,7 @@ void eigen_hessian_3d(float* dst_e0, float* dst_e1, float* dst_e2, const float* 
           f_xy, f_yy, f_yz,
           f_zx, f_yz, f_zz};
         float eigen[3];
-        cubic_eigen<newton_iter>(m, eigen);
+        cubic_eigen<newton_iter, version>(m, eigen);
         ev(dst_e0, x, y, z) = eigen[0];
         ev(dst_e1, x, y, z) = eigen[1];
         ev(dst_e2, x, y, z) = eigen[2];
@@ -179,7 +247,7 @@ void eigen_hessian_3d(float* dst_e0, float* dst_e1, float* dst_e2, const float* 
         __m128 vfyz = _mm_sub_ps(_mm_add_ps(vfyp1zp1, vfym1zm1), _mm_add_ps(vfym1zp1, vfyp1zm1));
         __m128 vfzx = _mm_sub_ps(_mm_add_ps(vfzp1xp1, vfzm1xm1), _mm_add_ps(vfzm1xp1, vfzp1xm1));
         __m128 ve0, ve1, ve2;
-        cubic_eigen<newton_iter>(vfxx, vfxy, vfzx, vfyy, vfyz, vfzz, ve0, ve1, ve2);
+        cubic_eigen<newton_iter, version>(vfxx, vfxy, vfzx, vfyy, vfyz, vfzz, ve0, ve1, ve2);
         _mm_storeu_ps((float*)&dst_e0[(z*h + y)*w + x], ve0);
         _mm_storeu_ps((float*)&dst_e1[(z*h + y)*w + x], ve1);
         _mm_storeu_ps((float*)&dst_e2[(z*h + y)*w + x], ve2);
@@ -195,6 +263,42 @@ void eigen_hessian_3d(float* dst_e0, float* dst_e1, float* dst_e2, const float* 
         ref_pixel(x);
     }
   }
+}
+
+struct eigen_result {
+  std::vector<float> e0;
+  std::vector<float> e1;
+  std::vector<float> e2;
+  size_t newton_iter;
+  eigen_result(size_t N)
+   : e0(N*N*N, 0.0f)
+   , e1(N*N*N, 0.0f)
+   , e2(N*N*N, 0.0f)
+  , newton_iter(0) {}
+};
+void show_diff(const eigen_result& ra, const eigen_result& rb, bool verbose) {
+  float e0_diff_sum = 0.0f;
+  float e1_diff_sum = 0.0f;
+  float e2_diff_sum = 0.0f;
+  for (size_t i=0; i<ra.e0.size(); ++i) {
+    if (verbose) {
+      std::cout << ""
+                << ra.e0[i] << ","
+                << ra.e1[i] << ","
+                << ra.e2[i] << " "
+                << rb.e0[i] << ","
+                << rb.e1[i] << ","
+                << rb.e2[i] << " "
+                << std::endl;
+    }
+    e0_diff_sum += std::abs(ra.e0[i] - rb.e0[i]);
+    e1_diff_sum += std::abs(ra.e1[i] - rb.e1[i]);
+    e2_diff_sum += std::abs(ra.e2[i] - rb.e2[i]);
+  }
+  std::cout << "newton_iter = (" << ra.newton_iter << ", " << rb.newton_iter << ") mean abs error: "
+    << e0_diff_sum/ra.e0.size() << ", "
+    << e1_diff_sum/ra.e1.size() << ", "
+    << e2_diff_sum/ra.e2.size() << std::endl;
 }
 
 template <typename Func>
@@ -222,52 +326,76 @@ int main() {
     volume[i] = uniform(mt);
   }
 
-  std::vector<float> e0s(N*N*N, 0.0f);
-  std::vector<float> e1s(N*N*N, 0.0f);
-  std::vector<float> e2s(N*N*N, 0.0f);
-  timer("reference", n_iter, [&]{
-    eigen_hessian_3d<newton_iter>(e0s.data(), e1s.data(), e2s.data(), volume.data(), N, N, N, true);
+  eigen_result ref0(N);
+  eigen_result ref1(N);
+  timer("reference0", n_iter, [&]{
+    ref0.newton_iter = newton_iter;
+    eigen_hessian_3d<newton_iter, 0>(ref0.e0.data(), ref0.e1.data(), ref0.e2.data(), volume.data(), N, N, N, true);
+  });
+  timer("reference1", n_iter, [&]{
+    ref1.newton_iter = newton_iter;
+    eigen_hessian_3d<newton_iter, 1>(ref1.e0.data(), ref1.e1.data(), ref1.e2.data(), volume.data(), N, N, N, true);
   });
 
-  std::vector<float> e0s_simd(N*N*N, 0.0f);
-  std::vector<float> e1s_simd(N*N*N, 0.0f);
-  std::vector<float> e2s_simd(N*N*N, 0.0f);
+  eigen_result simd0(N);
+  eigen_result simd1(N);
+  timer("SSE0-1", n_iter, [&]{
+    simd0.newton_iter = 1;
+    eigen_hessian_3d<1, 0>(simd0.e0.data(), simd0.e1.data(), simd0.e2.data(), volume.data(), N, N, N, false);
+  });
+  timer("SSE0-2", n_iter, [&]{
+    simd0.newton_iter = 2;
+    eigen_hessian_3d<2, 0>(simd0.e0.data(), simd0.e1.data(), simd0.e2.data(), volume.data(), N, N, N, false);
+  });
+  timer("SSE0-3", n_iter, [&]{
+    simd0.newton_iter = 3;
+    eigen_hessian_3d<3, 0>(simd0.e0.data(), simd0.e1.data(), simd0.e2.data(), volume.data(), N, N, N, false);
+  });
+  timer("SSE0", n_iter, [&]{
+    simd0.newton_iter = newton_iter;
+    eigen_hessian_3d<newton_iter, 0>(simd0.e0.data(), simd0.e1.data(), simd0.e2.data(), volume.data(), N, N, N, false);
+  });
+
+  timer("SSE1-1", n_iter, [&]{
+    simd1.newton_iter = 1;
+    eigen_hessian_3d<1, 0>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
+  });
+  timer("SSE1-2", n_iter, [&]{
+    simd1.newton_iter = 2;
+    eigen_hessian_3d<2, 0>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
+  });
+  timer("SSE1-3", n_iter, [&]{
+    simd1.newton_iter = 3;
+    eigen_hessian_3d<3, 0>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
+  });
+  timer("SSE1-4", n_iter, [&]{
+    simd1.newton_iter = 4;
+    eigen_hessian_3d<4, 0>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
+  });
+  timer("SSE1-5", n_iter, [&]{
+    simd1.newton_iter = 5;
+    eigen_hessian_3d<5, 0>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
+  });
+  timer("SSE1-6", n_iter, [&]{
+    simd1.newton_iter = 6;
+    eigen_hessian_3d<6, 0>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
+  });
   timer("SSE1", n_iter, [&]{
-    eigen_hessian_3d<1>(e0s_simd.data(), e1s_simd.data(), e2s_simd.data(), volume.data(), N, N, N, false);
-  });
-  timer("SSE2", n_iter, [&]{
-    eigen_hessian_3d<2>(e0s_simd.data(), e1s_simd.data(), e2s_simd.data(), volume.data(), N, N, N, false);
-  });
-  timer("SSE3", n_iter, [&]{
-    eigen_hessian_3d<3>(e0s_simd.data(), e1s_simd.data(), e2s_simd.data(), volume.data(), N, N, N, false);
-  });
-  timer("SSE", n_iter, [&]{
-    eigen_hessian_3d<newton_iter>(e0s_simd.data(), e1s_simd.data(), e2s_simd.data(), volume.data(), N, N, N, false);
+    simd1.newton_iter = newton_iter;
+    eigen_hessian_3d<newton_iter, 1>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
   });
 
-  float e0_diff_sum = 0.0f;
-  float e1_diff_sum = 0.0f;
-  float e2_diff_sum = 0.0f;
-  for (size_t i=0; i<volume.size(); ++i) {
-    if (verbose) {
-      std::cout << ""
-                << e0s[i] << ","
-                << e1s[i] << ","
-                << e2s[i] << " "
-                << e0s_simd[i] << ","
-                << e1s_simd[i] << ","
-                << e2s_simd[i] << " "
-                << std::endl;
-    }
-    e0_diff_sum += std::abs(e0s[i] - e0s_simd[i]);
-    e1_diff_sum += std::abs(e1s[i] - e1s_simd[i]);
-    e2_diff_sum += std::abs(e2s[i] - e2s_simd[i]);
-  }
-  std::cout << N << "x" << N << "x" << N << " volume. Newton iter = " << newton_iter << std::endl;
-  std::cout << "mean abs error: "
-    << e0_diff_sum/volume.size() << ", "
-    << e1_diff_sum/volume.size() << ", "
-    << e2_diff_sum/volume.size() << std::endl;
+  std::cout << "ref0 ~ ref1: " << N << "x" << N << "x" << N << " volume. : ";
+  show_diff(ref0, ref1, verbose);
+  std::cout << "ref0 ~ simd0: " << N << "x" << N << "x" << N << " volume. : ";
+  show_diff(ref0, simd0, verbose);
+  std::cout << "ref1 ~ simd1: " << N << "x" << N << "x" << N << " volume. : ";
+  show_diff(ref1, simd1, verbose);
+  std::cout << "simd0 ~ simd1: " << N << "x" << N << "x" << N << " volume. : ";
+  show_diff(simd0, simd1, verbose);
+  std::cout << "ref0 ~ simd1: " << N << "x" << N << "x" << N << " volume. : ";
+  show_diff(ref0, simd1, verbose);
+
   return 0;
 }
 
