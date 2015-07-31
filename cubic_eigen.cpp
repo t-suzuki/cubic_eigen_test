@@ -358,27 +358,27 @@ int main() {
 
   timer("SSE1-1", n_iter, [&]{
     simd1.newton_iter = 1;
-    eigen_hessian_3d<1, 0>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
+    eigen_hessian_3d<1, 1>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
   });
   timer("SSE1-2", n_iter, [&]{
     simd1.newton_iter = 2;
-    eigen_hessian_3d<2, 0>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
+    eigen_hessian_3d<2, 1>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
   });
   timer("SSE1-3", n_iter, [&]{
     simd1.newton_iter = 3;
-    eigen_hessian_3d<3, 0>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
+    eigen_hessian_3d<3, 1>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
   });
   timer("SSE1-4", n_iter, [&]{
     simd1.newton_iter = 4;
-    eigen_hessian_3d<4, 0>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
+    eigen_hessian_3d<4, 1>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
   });
   timer("SSE1-5", n_iter, [&]{
     simd1.newton_iter = 5;
-    eigen_hessian_3d<5, 0>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
+    eigen_hessian_3d<5, 1>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
   });
   timer("SSE1-6", n_iter, [&]{
     simd1.newton_iter = 6;
-    eigen_hessian_3d<6, 0>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
+    eigen_hessian_3d<6, 1>(simd1.e0.data(), simd1.e1.data(), simd1.e2.data(), volume.data(), N, N, N, false);
   });
   timer("SSE1", n_iter, [&]{
     simd1.newton_iter = newton_iter;
