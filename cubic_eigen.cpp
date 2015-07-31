@@ -182,9 +182,10 @@ void cubic_eigen(
     __m128 vt = newton(vtstart);
     __m128 valphaneg = _mm_sub_ps(vaneg, vt);
     __m128 vbeta = _mm_sub_ps(vb, _mm_mul_ps(valphaneg, vt));
-    __m128 vsqrt2 = _mm_sqrt_ps(_mm_add_ps(_mm_mul_ps(valphaneg, valphaneg), _mm_mul_ps(_mm_set1_ps(-4.0f), vbeta)));
-    __m128 vr = _mm_mul_ps(_mm_sub_ps(valphaneg, vsqrt2), _mm_set1_ps(0.5f));
-    __m128 vs = _mm_mul_ps(_mm_add_ps(valphaneg, vsqrt2), _mm_set1_ps(0.5f));
+    __m128 valphaneghalf = _mm_mul_ps(valphaneg, _mm_set1_ps(0.5f));
+    __m128 vsqrt2 = _mm_sqrt_ps(_mm_sub_ps(_mm_mul_ps(valphaneghalf, valphaneghalf), vbeta));
+    __m128 vr = _mm_sub_ps(valphaneghalf, vsqrt2);
+    __m128 vs = _mm_add_ps(valphaneghalf, vsqrt2);
     __m128 vtrmax = _mm_max_ps(vt, vr);
     e0 = _mm_min_ps(vt, vr);
     e1 = _mm_min_ps(vtrmax, vs);
