@@ -159,8 +159,8 @@ void cubic_eigen(
     const __m128 vcneg = det(M);
     const __m128 vsqrt = _mm_sqrt_ps(_mm_sub_ps(va2, _mm_mul_ps(_mm_set1_ps(3.0f), vb)));
     const __m128 vh = _mm_mul_ps(vaneg, _mm_set1_ps(1.0f/3.0f));
-    const __m128 vfh = _mm_sub_ps(_mm_mul_ps(vh, _mm_add_ps(_mm_mul_ps(vh, _mm_sub_ps(vh, vaneg)), vb)), vcneg);
-    const __m128 vmask = _mm_cmpgt_ps(vfh, _mm_setzero_ps());
+    const __m128 vfh_vcneg = _mm_mul_ps(vh, _mm_add_ps(_mm_mul_ps(vh, _mm_sub_ps(vh, vaneg)), vb));
+    const __m128 vmask = _mm_cmpgt_ps(vfh_vcneg, vcneg);
     const __m128 vtstart = _mm_add_ps(vh, _mm_or_ps(_mm_and_ps(vmask, vsqrt), _mm_andnot_ps(vmask, _mm_sub_ps(_mm_setzero_ps(), vsqrt))));
 #undef M
     auto newton = [=](__m128 vx) {
